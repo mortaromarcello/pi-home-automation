@@ -1,0 +1,16 @@
+<%inherit file="base.html"/>
+<%include file="header.html"/>
+<div align="center">
+	<h3>Inserire la password di amministrazione</h3>
+	<form action="firstSetup" method="post">
+		<p>Password</p>
+		<input type="password" name="password" value="" size="15" maxlength="40"/>
+		<table style="width:120px">
+			<tr align="center">
+				<td><input type="submit" value="Ok"/></td>
+				<td><input type="reset" value="Clear"/></td>
+			</tr>
+		</table>
+	</form>
+</div>
+<%include file="footer.html"/>
