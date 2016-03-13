@@ -1,4 +1,16 @@
 # -*- coding: utf-8 -*-
+from configuration import board_write as board_write
+from configuration import board_read as board_read
+from configuration import CH1 as CH1
+from configuration import CH2 as CH2
+from configuration import CH3 as CH3
+from configuration import CH4 as CH4
+from configuration import CH5 as CH5
+from configuration import CH6 as CH6
+from configuration import CH7 as CH7
+from configuration import CH8 as CH8
+from configuration import ALL_CH as ALL_CH
+
 import argparse
 import random
 import os
@@ -9,7 +21,6 @@ import signal
 import sys
 import hashlib
 import re
-#import RPi.GPIO as GPIO
 import cherrypy
 import json
 import urlparse
@@ -22,12 +33,6 @@ from sqlalchemy.orm import sessionmaker,scoped_session
 from mako.template import Template
 from mako.lookup import TemplateLookup
 lookup = TemplateLookup(directories=['html'])
-
-try:
-	board=Arduino('/dev/ttyACM0')
-except:
-	print "errore nell'inizializzare arduino."
-	exit(1)
 
 engine = models.engine
 session = models.session
@@ -48,15 +53,11 @@ class ChatWebSocketHandler(WebSocket):
 			self.send(jsonLabels)
 		elif(cmd=="on"):
 			r=int(jo["r"])
-			#GPIO.output(ALL_CH[r-1],GPIO.LOW)
-			board.digital[ALL_CH[r-1]].write(0)
-			#print board.digital[ALL_CH[r-1]].read()
+			board_write(ALL_CH[r-1], 0)
 			print "On:",r-1
 		elif(cmd=="off"):
 			r=int(jo["r"])
-			#GPIO.output(ALL_CH[r-1],GPIO.HIGH)
-			board.digital[ALL_CH[r-1]].write(1)
-			#print board.digital[ALL_CH[r-1]].read()
+			board_write(ALL_CH[r-1], 1)
 			print "Off:",r-1
 		elif(cmd=="updateLabels"):
 			readJsonLabels()
@@ -108,10 +109,12 @@ class Root(object):
 		return tmpl.render()
 	doAdmin.exposed = True
 	
+	"""
 	def doRegister(self):
 		tmpl = lookup.get_template("register.html")
 		return tmpl.render()
 	doRegister.exposed = True
+	"""
 	
 	def add(self, username, fname, password):
 		pwdhash = hashlib.md5(password).hexdigest()
@@ -148,22 +151,14 @@ class Root(object):
 		cherrypy.log("Handler created: %s" % repr(cherrypy.request.ws_handler))
 
 def getStatus():
-	return [#GPIO.input(CH1),\
-			#GPIO.input(CH2),\
-			#GPIO.input(CH3),\
-			#GPIO.input(CH4),\
-			#GPIO.input(CH5),\
-			#GPIO.input(CH6),\
-			#GPIO.input(CH7),\
-			#GPIO.input(CH8)]
-			board.digital[CH1].read(),\
-			board.digital[CH2].read(),\
-			board.digital[CH3].read(),\
-			board.digital[CH4].read(),\
-			board.digital[CH5].read(),\
-			board.digital[CH6].read(),\
-			board.digital[CH7].read(),\
-			board.digital[CH8].read()]
+	return [board_read(CH1),\
+			board_read(CH2),\
+			board_read(CH3),\
+			board_read(CH4),\
+			board_read(CH5),\
+			board_read(CH6),\
+			board_read(CH7),\
+			board_read(CH8)]
 
 def statusJSON(status):
 	return '{"status":['+(', '.join(str(x) for x in status))+']}';
@@ -201,12 +196,10 @@ def timing(arg):
 				#print cT,sT,eT,cT-sT,cT-eT
 				if (abs(cT-sT)<pollInterval):
 					if ((1<<dow)&t['dow']!=0):
-						#GPIO.output(ALL_CH[id-1],GPIO.LOW)
-						board.digital[ALL_CH[id-1]].write(0)
+						board_write(ALL_CH[id-1], 0)
 						cherrypy.engine.publish('websocket-broadcast', statusJSON(getStatus()))
 				if (abs(cT-eT)<pollInterval):
-					#GPIO.output(ALL_CH[id-1],GPIO.HIGH)
-					board.digital[ALL_CH[id-1]].write(1)
+					board_write(ALL_CH[id-1], 1)
 					cherrypy.engine.publish('websocket-broadcast', statusJSON(getStatus()))
 				
 		time.sleep(pollInterval)
@@ -242,28 +235,6 @@ def time_in_range(start, end, x):
 def time2sec(h,m,s):
 	return s+(m*60)+(h*3600);
 
-#GPIO.setmode(GPIO.BOARD)
-#CH1=11
-#CH2=12
-#CH3=13
-#CH4=15
-#CH5=16
-#CH6=18
-#CH7=22
-#CH8=7
-CH1=3
-CH2=4
-CH3=5
-CH4=6
-CH5=7
-CH6=8
-CH7=9
-CH8=10
-ALL_CH=(CH1,CH2,CH3,CH4,CH5,CH6,CH7,CH8)
-#GPIO.setup(ALL_CH, GPIO.OUT)
-#GPIO.output(ALL_CH,GPIO.HIGH)
-for i in ALL_CH:
-	board.digital[i].write(1)
 currentStatus=[1,1,1,1,1,1,1,1]
 oldStatus=[0,0,0,0,0,0,0]
 jsonLabels="{}"
