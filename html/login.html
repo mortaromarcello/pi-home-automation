@@ -1,0 +1,23 @@
+<%inherit file="base.html"/>
+<%include file="header.html"/>
+<!--link rel = "stylesheet" type="text/css" href="login.css"-->
+<style type="text/css">
+</style>
+<div align="center">
+	<form action="doLogin" method="post">
+		<p>Username</p>
+		<input type="text" name="username" value="" size="15" maxlength="40"/>
+		<p>Password</p>
+		<input type="password" name="password" value="" size="15" maxlength="40"/>
+		<table style="width:120px">
+			<tr align="center">
+				<td><input type="submit" value="Login"/></td>
+				<td><input type="reset" value="Clear"/></td>
+			</tr>
+		</table>
+</form>
+<!--form action="doAdmin" method="post"-->
+	<!--p><input type="submit" value="Admin"/></p-->
+<!--/form-->
+</div>
+<%include file="footer.html"/>

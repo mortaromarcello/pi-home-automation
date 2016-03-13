@@ -1,0 +1,13 @@
+<%inherit file="base.html"/>
+<%include file="header.html"/>
+<form action="add" method="post">
+	<p>Username</p>
+	<input type="text" name="username" value="" size="15" maxlength="40"/>
+	<p>Full name</p>
+	<input type="text" name="fname" value="" size="15" maxlength="40"/>
+	<p>Password</p>
+	<input type="password" name="password" value="" size="15" maxlength="40"/>
+	<p><input type="submit" value="Ok"/></p>
+	<p><input type="reset" value="Cancel"/></p>
+</form>
+<%include file="footer.html"/>
