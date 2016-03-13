@@ -8,7 +8,6 @@ import threading
 import signal
 import sys
 import hashlib
-import web
 import re
 #import RPi.GPIO as GPIO
 import cherrypy
@@ -82,10 +81,6 @@ class Root(object):
 	def index(self):
 		urlP=urlparse.urlparse(cherrypy.request.base)
 		self.create_db()
-		#fo=open('index.html')
-		#content=fo.read()
-		#fo.close()
-		#return content
 		tmpl = lookup.get_template("login.html")
 		return tmpl.render()
 	
@@ -100,9 +95,9 @@ class Root(object):
 				else:
 					tmpl = lookup.get_template("index.html")
 				return tmpl.render()
-		else:
-			print "no user"
-			return self.doRegister()
+		print "no user"
+		tmpl = lookup.get_template("nouser.html")
+		return tmpl.render()
 	doLogin.exposed = True
 
 	def doAdmin(self):
@@ -130,7 +125,8 @@ class Root(object):
 			tmpl = lookup.get_template("login.html")
 			return tmpl.render()
 		else:
-			return "A stronzo!!!"
+			tmpl = lookup.get_template("nouser.html")
+			return tmpl.render()
 	add.exposed = True
 	
 	def create_db(self):
