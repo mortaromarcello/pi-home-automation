@@ -7,6 +7,9 @@ import datetime
 import threading
 import signal
 import sys
+import hashlib
+import web
+import re
 #import RPi.GPIO as GPIO
 import cherrypy
 import json
@@ -15,6 +18,17 @@ from ws4py.server.cherrypyserver import WebSocketPlugin, WebSocketTool
 from ws4py.websocket import WebSocket
 from ws4py.messaging import TextMessage
 from pyfirmata import Arduino, util
+import models
+from sqlalchemy.orm import sessionmaker,scoped_session
+from mako.template import Template
+from mako.lookup import TemplateLookup
+lookup = TemplateLookup(directories=['html'])
+#from models import *
+
+engine = models.engine
+session = models.session
+users = models.User
+
 board=Arduino('/dev/ttyACM0')
 
 class ChatWebSocketHandler(WebSocket):
@@ -59,22 +73,80 @@ class ChatWebSocketHandler(WebSocket):
 		cherrypy.engine.publish('websocket-broadcast', TextMessage(reason))
 
 class Root(object):
-    def __init__(self, host, port, ssl=False):
-        self.host = host
-        self.port = port
-        self.scheme = 'wss' if ssl else 'ws'
+	def __init__(self, host, port, ssl=False):
+		self.host = host
+		self.port = port
+		self.scheme = 'wss' if ssl else 'ws'
+	
+	@cherrypy.expose
+	def index(self):
+		urlP=urlparse.urlparse(cherrypy.request.base)
+		self.create_db()
+		#fo=open('index.html')
+		#content=fo.read()
+		#fo.close()
+		#return content
+		tmpl = lookup.get_template("login.html")
+		return tmpl.render()
+	
+	def doLogin(self, username=None, password=None):
+		"""Check the username & password"""
+		pwdhash = hashlib.md5(password).hexdigest()
+		if username != "" and password != "":
+			user = session.query(users).filter(users.name==username, users.password==pwdhash).first()
+			if user != None:
+				if user.name=="admin":
+					tmpl = lookup.get_template("admin.html")
+				else:
+					tmpl = lookup.get_template("index.html")
+				return tmpl.render()
+		else:
+			print "no user"
+			return self.doRegister()
+	doLogin.exposed = True
 
-    @cherrypy.expose
-    def index(self):
-        urlP=urlparse.urlparse(cherrypy.request.base);
-        fo=open('index.html')
-        content=fo.read()
-        fo.close()
-        return content
-
-    @cherrypy.expose
-    def ws(self):
-        cherrypy.log("Handler created: %s" % repr(cherrypy.request.ws_handler))
+	def doAdmin(self):
+		tmpl = lookup.get_template("admin.html")
+		return tmpl.render()
+	doAdmin.exposed = True
+	
+	def doRegister(self):
+		tmpl = lookup.get_template("register.html")
+		return tmpl.render()
+	doRegister.exposed = True
+	
+	def add(self, username, fname, password):
+		pwdhash = hashlib.md5(password).hexdigest()
+		try:
+			user = session.query(users).filter(users.name==username).first()
+			if user == None:
+				new_user=users(name=username, fullname=fname, password=pwdhash)
+				session.add(new_user)
+				# invo la sessione e creo il nuovo utente in db
+				session.commit()
+		except:
+			session.rollback()
+			print "add("+username+","+pwdhash+")"
+			tmpl = lookup.get_template("login.html")
+			return tmpl.render()
+		else:
+			return "A stronzo!!!"
+	add.exposed = True
+	
+	def create_db(self):
+		# creo il db e tutte le tabelle nel database
+		out = models.initialize_sql()
+		admin_user=users("admin", "admin", "f28804c858110077f51dcaf3fd392fba")
+		try:
+			session.add(admin_user)
+			session.commit()
+		except:
+			session.rollback()
+		return "DB creato, Tabelle Create."
+	
+	@cherrypy.expose
+	def ws(self):
+		cherrypy.log("Handler created: %s" % repr(cherrypy.request.ws_handler))
 
 def getStatus():
 	return [#GPIO.input(CH1),\
@@ -162,11 +234,11 @@ def readJsonLabels():
 	fo.close()
 
 def time_in_range(start, end, x):
-    """Return true if x is in the range [start, end]"""
-    if start <= end:
-        return start <= x <= end
-    else:
-        return start <= x or x <= end
+	"""Return true if x is in the range [start, end]"""
+	if start <= end:
+		return start <= x <= end
+	else:
+		return start <= x or x <= end
 
 def time2sec(h,m,s):
 	return s+(m*60)+(h*3600);
@@ -218,12 +290,12 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   cherrypy.config.update({'server.socket_host': args.host,
-                          'server.socket_port': args.port,
-                          'tools.staticdir.root': os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))})
+						  'server.socket_port': args.port,
+						  'tools.staticdir.root': os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))})
 
   if args.ssl:
-      cherrypy.config.update({'server.ssl_certificate': './server.crt',
-                              'server.ssl_private_key': './server.key'})
+	  cherrypy.config.update({'server.ssl_certificate': './server.crt',
+							  'server.ssl_private_key': './server.key'})
 
   WebSocketPlugin(cherrypy.engine).subscribe()
   cherrypy.tools.websocket = WebSocketTool()
