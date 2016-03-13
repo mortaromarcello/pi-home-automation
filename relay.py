@@ -22,13 +22,16 @@ from sqlalchemy.orm import sessionmaker,scoped_session
 from mako.template import Template
 from mako.lookup import TemplateLookup
 lookup = TemplateLookup(directories=['html'])
-#from models import *
+
+try:
+	board=Arduino('/dev/ttyACM0')
+except:
+	print "errore nell'inizializzare arduino."
+	exit(1)
 
 engine = models.engine
 session = models.session
 users = models.User
-
-board=Arduino('/dev/ttyACM0')
 
 class ChatWebSocketHandler(WebSocket):
 	def received_message(self, m):
@@ -267,52 +270,52 @@ jsonLabels="{}"
 readJsonLabels()
 
 if __name__ == '__main__':
-  import logging
-  from ws4py import configure_logger
-  print os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
-  configure_logger(level=logging.DEBUG)
-  signal.signal(signal.SIGINT, signal_handler)
-  pollStatus=True 
-  thread = threading.Thread(target = stpoll, args = (10, ))
-  thread.daemon = True
-  thread2 = threading.Thread(target = timing, args = (10, ))
-  thread2.daemon = True
-  thread2.start()
-  thread.start()
-  parser = argparse.ArgumentParser(description='Echo CherryPy Server')
-  parser.add_argument('--host', default='0.0.0.0')
-  parser.add_argument('-p', '--port', default=9000, type=int)
-  parser.add_argument('--ssl', action='store_true')
-  args = parser.parse_args()
+	import logging
+	from ws4py import configure_logger
+	print os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
+	configure_logger(level=logging.DEBUG)
+	signal.signal(signal.SIGINT, signal_handler)
+	pollStatus=True 
+	thread = threading.Thread(target = stpoll, args = (10, ))
+	thread.daemon = True
+	thread2 = threading.Thread(target = timing, args = (10, ))
+	thread2.daemon = True
+	thread2.start()
+	thread.start()
+	parser = argparse.ArgumentParser(description='Echo CherryPy Server')
+	parser.add_argument('--host', default='0.0.0.0')
+	parser.add_argument('-p', '--port', default=9000, type=int)
+	parser.add_argument('--ssl', action='store_true')
+	args = parser.parse_args()
 
-  cherrypy.config.update({'server.socket_host': args.host,
-						  'server.socket_port': args.port,
-						  'tools.staticdir.root': os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))})
+	cherrypy.config.update({'server.socket_host': args.host,
+							'server.socket_port': args.port,
+							'tools.staticdir.root': os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))})
 
-  if args.ssl:
-	  cherrypy.config.update({'server.ssl_certificate': './server.crt',
-							  'server.ssl_private_key': './server.key'})
+	if args.ssl:
+		cherrypy.config.update({'server.ssl_certificate': './server.crt',
+								'server.ssl_private_key': './server.key'})
 
-  WebSocketPlugin(cherrypy.engine).subscribe()
-  cherrypy.tools.websocket = WebSocketTool()
-  pwd=os.getcwd();
-  cherrypy.quickstart(Root(args.host, args.port, args.ssl), '', config={
-  		'/': {
-  			'tools.staticdir.on': True,
-			'tools.staticdir.dir': ''
-  		},
-		'/ws': {
-			'tools.websocket.on': True,
-			'tools.websocket.handler_cls': ChatWebSocketHandler
-		  },
-		'/js': {
-			'tools.staticdir.on': True,
-			'tools.staticdir.dir': 'js'
-		  },
-		'/fonts': {
-			'tools.staticdir.on': True,
-			'tools.staticdir.dir': 'fonts'
-		  }
+	WebSocketPlugin(cherrypy.engine).subscribe()
+	cherrypy.tools.websocket = WebSocketTool()
+	pwd=os.getcwd();
+	cherrypy.quickstart(Root(args.host, args.port, args.ssl), '', config={
+			'/': {
+				'tools.staticdir.on': True,
+				'tools.staticdir.dir': ''
+			},
+			'/ws': {
+				'tools.websocket.on': True,
+				'tools.websocket.handler_cls': ChatWebSocketHandler
+			},
+			'/js': {
+				'tools.staticdir.on': True,
+				'tools.staticdir.dir': 'js'
+			},
+			'/fonts': {
+				'tools.staticdir.on': True,
+				'tools.staticdir.dir': 'fonts'
+			}
   	});
-  thread.join();
-  #GPIO.cleanup();
+	thread.join();
+	#GPIO.cleanup();
