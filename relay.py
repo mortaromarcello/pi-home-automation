@@ -11,6 +11,7 @@ from configuration import CH7 as CH7
 from configuration import CH8 as CH8
 from configuration import ALL_CH as ALL_CH
 
+import os.path
 import argparse
 import random
 import os
@@ -85,8 +86,28 @@ class Root(object):
 	def index(self):
 		urlP=urlparse.urlparse(cherrypy.request.base)
 		self.create_db()
+		if os.path.isfile("html/first_setup.html"):
+			if os.path.isfile("mydatabase.db"):
+				os.remove("mydatabase.db")
+				self.create_db()
+			tmpl = lookup.get_template("first_setup.html")
+			return tmpl.render()
 		tmpl = lookup.get_template("login.html")
 		return tmpl.render()
+	
+	def firstSetup(self, password):
+		pwdhash = hashlib.md5(password).hexdigest()
+		admin_user=users("admin", "admin", pwdhash)
+		try:
+			session.add(admin_user)
+			session.commit()
+		except:
+			session.rollback()
+		print "delete file 'first_setup.html'"
+		os.remove("html/first_setup.html")
+		tmpl = lookup.get_template("login.html")
+		return tmpl.render()
+	firstSetup.exposed=True	
 	
 	def doLogin(self, username=None, password=None):
 		"""Check the username & password"""
@@ -118,15 +139,15 @@ class Root(object):
 	
 	def add(self, username, fname, password):
 		pwdhash = hashlib.md5(password).hexdigest()
-		try:
-			user = session.query(users).filter(users.name==username).first()
-			if user == None:
+		user = session.query(users).filter(users.name==username).first()
+		if user == None:
+			try:
 				new_user=users(name=username, fullname=fname, password=pwdhash)
 				session.add(new_user)
-				# invo la sessione e creo il nuovo utente in db
+				# invio la sessione e creo il nuovo utente in db
 				session.commit()
-		except:
-			session.rollback()
+			except:
+				session.rollback()
 			print "add("+username+","+pwdhash+")"
 			tmpl = lookup.get_template("login.html")
 			return tmpl.render()
@@ -138,12 +159,6 @@ class Root(object):
 	def create_db(self):
 		# creo il db e tutte le tabelle nel database
 		out = models.initialize_sql()
-		admin_user=users("admin", "admin", "f28804c858110077f51dcaf3fd392fba")
-		try:
-			session.add(admin_user)
-			session.commit()
-		except:
-			session.rollback()
 		return "DB creato, Tabelle Create."
 	
 	@cherrypy.expose
