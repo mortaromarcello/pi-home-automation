@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
-from configuration import board_write as board_write
-from configuration import board_read as board_read
-from configuration import CH1 as CH1
-from configuration import CH2 as CH2
-from configuration import CH3 as CH3
-from configuration import CH4 as CH4
-from configuration import CH5 as CH5
-from configuration import CH6 as CH6
-from configuration import CH7 as CH7
-from configuration import CH8 as CH8
-from configuration import ALL_CH as ALL_CH
+import boards
 
 import os.path
 import argparse
@@ -38,6 +28,7 @@ lookup = TemplateLookup(directories=['html'])
 engine = models.engine
 session = models.session
 users = models.User
+board = boards.board
 
 class ChatWebSocketHandler(WebSocket):
 	def received_message(self, m):
@@ -54,11 +45,11 @@ class ChatWebSocketHandler(WebSocket):
 			self.send(jsonLabels)
 		elif(cmd=="on"):
 			r=int(jo["r"])
-			board_write(ALL_CH[r-1], 0)
+			board.write(board.ALL_CH.values()[r-1], 0)
 			print "On:",r-1
 		elif(cmd=="off"):
 			r=int(jo["r"])
-			board_write(ALL_CH[r-1], 1)
+			board.write(board.ALL_CH.values()[r-1], 1)
 			print "Off:",r-1
 		elif(cmd=="updateLabels"):
 			readJsonLabels()
@@ -94,7 +85,8 @@ class Root(object):
 			return tmpl.render()
 		tmpl = lookup.get_template("login.html")
 		return tmpl.render()
-	
+
+	@cherrypy.expose
 	def firstSetup(self, password):
 		pwdhash = hashlib.md5(password).hexdigest()
 		admin_user=users("admin", "admin", pwdhash)
@@ -106,9 +98,9 @@ class Root(object):
 		print "delete file 'first_setup.html'"
 		os.remove("html/first_setup.html")
 		tmpl = lookup.get_template("login.html")
-		return tmpl.render()
-	firstSetup.exposed=True	
+		return tmpl.render()	
 	
+	@cherrypy.expose
 	def doLogin(self, username=None, password=None):
 		"""Check the username & password"""
 		pwdhash = hashlib.md5(password).hexdigest()
@@ -123,12 +115,11 @@ class Root(object):
 		print "no user"
 		tmpl = lookup.get_template("nouser.html")
 		return tmpl.render()
-	doLogin.exposed = True
 
+	@cherrypy.expose
 	def doAdmin(self):
 		tmpl = lookup.get_template("admin.html")
 		return tmpl.render()
-	doAdmin.exposed = True
 	
 	"""
 	def doRegister(self):
@@ -137,7 +128,8 @@ class Root(object):
 	doRegister.exposed = True
 	"""
 	
-	def add(self, username, fname, password):
+	@cherrypy.expose
+	def addUser(self, username, fname, password):
 		pwdhash = hashlib.md5(password).hexdigest()
 		user = session.query(users).filter(users.name==username).first()
 		if user == None:
@@ -148,14 +140,14 @@ class Root(object):
 				session.commit()
 			except:
 				session.rollback()
-			print "add("+username+","+pwdhash+")"
+			print "add(" + username + "," + pwdhash + ")"
 			tmpl = lookup.get_template("login.html")
 			return tmpl.render()
 		else:
-			tmpl = lookup.get_template("nouser.html")
-			return tmpl.render()
-	add.exposed = True
-	
+			#tmpl = Template("""<script>alert("Hello! I am an alert box!");window.open ('http://localhost:9000','_self',false)</script>""")
+			#return tmpl.render()
+			return self.alert("User already exist!")
+
 	def create_db(self):
 		# creo il db e tutte le tabelle nel database
 		out = models.initialize_sql()
@@ -165,15 +157,16 @@ class Root(object):
 	def ws(self):
 		cherrypy.log("Handler created: %s" % repr(cherrypy.request.ws_handler))
 
+	def alert(self, message):
+		ret = "<%inherit file='base.html'/><%include file='header.html'/><div align='center'><h4>"+message+"</h4><tr><td><button onclick='myFunction()'>  Ok  </button></td></tr></div><script>function myFunction(){window.open('http://localhost:9000','_self',false);}</script><%include file='footer.html'/>"
+		tmpl = Template(ret, default_filters=['decode.utf8'],lookup=lookup)
+		return tmpl.render()
+
 def getStatus():
-	return [board_read(CH1),\
-			board_read(CH2),\
-			board_read(CH3),\
-			board_read(CH4),\
-			board_read(CH5),\
-			board_read(CH6),\
-			board_read(CH7),\
-			board_read(CH8)]
+	value = []
+	for ch in board.ALL_CH.keys():
+		value.append(board.read(board.ALL_CH[ch]))
+	return value
 
 def statusJSON(status):
 	return '{"status":['+(', '.join(str(x) for x in status))+']}';
@@ -211,10 +204,10 @@ def timing(arg):
 				#print cT,sT,eT,cT-sT,cT-eT
 				if (abs(cT-sT)<pollInterval):
 					if ((1<<dow)&t['dow']!=0):
-						board_write(ALL_CH[id-1], 0)
+						board.write(board.ALL_CH.values()[id-1], 0)
 						cherrypy.engine.publish('websocket-broadcast', statusJSON(getStatus()))
 				if (abs(cT-eT)<pollInterval):
-					board_write(ALL_CH[id-1], 1)
+					board.write(board.ALL_CH.values()[id-1], 1)
 					cherrypy.engine.publish('websocket-broadcast', statusJSON(getStatus()))
 				
 		time.sleep(pollInterval)
@@ -303,5 +296,6 @@ if __name__ == '__main__':
 				'tools.staticdir.dir': 'fonts'
 			}
   	});
-	thread.join();
-	#GPIO.cleanup();
+	thread.join()
+	if board.type() == "raspberry":
+		GPIO.cleanup()
