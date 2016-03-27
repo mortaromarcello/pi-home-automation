@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import boards
 
+import logging
 import os.path
 import argparse
 import random
@@ -23,12 +24,28 @@ import models
 from sqlalchemy.orm import sessionmaker,scoped_session
 from mako.template import Template
 from mako.lookup import TemplateLookup
-lookup = TemplateLookup(directories=['html'])
+from ws4py import configure_logger
 
+#---------------------------------------------------------------------
+LOG_FILENAME = 'pi-home-automation.log'
+logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
+configure_logger(level=logging.DEBUG)
+lookup = TemplateLookup(directories=['html'], cache_enabled=False)
 engine = models.engine
 session = models.session
 users = models.User
-board = boards.board
+header = "<table style='width:100%'><tr><td style='text-align:left'>left</td><td style='text-align:center'><span style='color:red;font-style:normal;font-size:large'>&pi; Home Automation</span></td><td style='text-align:right'>right</td></tr></table>"
+footer = "<table style='width:100%'><tr><td style='text-align:left'><span style='color:red;font-style:italic;font-size:xx-small'>this is footer content</span></td><td style='text-align:right'><span style='color:green;font-style:bold;font-size:xx-small'>prova</span></td></p>"
+try:
+	board = boards.getBoard()
+except boards.BoardError:
+	logging.debug("Board error occurred. Check file configuration")
+	board = None
+	footer = "Warning: A board error occurred. Contact your admin."
+config = boards.Config
+fileconfig = boards.FileConfig
+
+#----------------------------------------------------------------------
 
 class ChatWebSocketHandler(WebSocket):
 	def received_message(self, m):
@@ -82,9 +99,9 @@ class Root(object):
 				os.remove("mydatabase.db")
 				self.create_db()
 			tmpl = lookup.get_template("first_setup.html")
-			return tmpl.render()
+			return tmpl.render(myheader=header,myfooter=footer)
 		tmpl = lookup.get_template("login.html")
-		return tmpl.render()
+		return tmpl.render(myheader=header,myfooter=footer)
 
 	@cherrypy.expose
 	def firstSetup(self, password):
@@ -98,7 +115,7 @@ class Root(object):
 		print "delete file 'first_setup.html'"
 		os.remove("html/first_setup.html")
 		tmpl = lookup.get_template("login.html")
-		return tmpl.render()	
+		return tmpl.render(myheader=header,myfooter=footer)	
 	
 	@cherrypy.expose
 	def doLogin(self, username=None, password=None):
@@ -110,23 +127,18 @@ class Root(object):
 				if user.name=="admin":
 					tmpl = lookup.get_template("admin.html")
 				else:
+					if board is None:
+						return self.alert("Error Board")
 					tmpl = lookup.get_template("index.html")
-				return tmpl.render()
+				return tmpl.render(myheader=header,myfooter=footer)
 		print "no user"
 		tmpl = lookup.get_template("nouser.html")
-		return tmpl.render()
+		return tmpl.render(myheader=header,myfooter=footer)
 
 	@cherrypy.expose
 	def doAdmin(self):
 		tmpl = lookup.get_template("admin.html")
-		return tmpl.render()
-	
-	"""
-	def doRegister(self):
-		tmpl = lookup.get_template("register.html")
-		return tmpl.render()
-	doRegister.exposed = True
-	"""
+		return tmpl.render(myheader=header,myfooter=footer)
 	
 	@cherrypy.expose
 	def addUser(self, username, fname, password):
@@ -142,11 +154,24 @@ class Root(object):
 				session.rollback()
 			print "add(" + username + "," + pwdhash + ")"
 			tmpl = lookup.get_template("login.html")
-			return tmpl.render()
+			return tmpl.render(myheader=header,myfooter=footer)
 		else:
-			#tmpl = Template("""<script>alert("Hello! I am an alert box!");window.open ('http://localhost:9000','_self',false)</script>""")
-			#return tmpl.render()
 			return self.alert("User already exist!")
+
+	@cherrypy.expose
+	def configBoard(self, type_board):
+		global board
+		global footer
+		config.set('board', 'type', type_board)
+		with open(fileconfig, 'wb') as f:
+			config.write(f)
+		try:
+			board = boards.getBoard()
+			footer = "this is footer content"
+		except boards.BoardError:
+			board = None
+			footer = "Warning: A board error occurred. Contact your admin."
+		return self.index()
 
 	def create_db(self):
 		# creo il db e tutte le tabelle nel database
@@ -160,9 +185,11 @@ class Root(object):
 	def alert(self, message):
 		ret = "<%inherit file='base.html'/><%include file='header.html'/><div align='center'><h4>"+message+"</h4><tr><td><button onclick='myFunction()'>  Ok  </button></td></tr></div><script>function myFunction(){window.open('http://localhost:9000','_self',false);}</script><%include file='footer.html'/>"
 		tmpl = Template(ret, default_filters=['decode.utf8'],lookup=lookup)
-		return tmpl.render()
+		return tmpl.render(myheader=header,myfooter=footer)
 
 def getStatus():
+	if board is None:
+		return []
 	value = []
 	for ch in board.ALL_CH.keys():
 		value.append(board.read(board.ALL_CH[ch]))
@@ -249,10 +276,8 @@ jsonLabels="{}"
 readJsonLabels()
 
 if __name__ == '__main__':
-	import logging
-	from ws4py import configure_logger
+	
 	print os.path.abspath(os.path.join(os.path.dirname(__file__), 'static'))
-	configure_logger(level=logging.DEBUG)
 	signal.signal(signal.SIGINT, signal_handler)
 	pollStatus=True 
 	thread = threading.Thread(target = stpoll, args = (10, ))
