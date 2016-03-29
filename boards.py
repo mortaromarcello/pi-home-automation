@@ -74,7 +74,7 @@ class Arduino(Board):
 			try:
 				arduino(s)
 				found = True
-			except SerialException:
+			except (SerialException, OSError):
 				found = False
 				continue
 			if found == True:
